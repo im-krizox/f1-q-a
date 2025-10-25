@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: f1-qa-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENF1_BASE_URL=https://api.openf1.org/v1
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:8080,http://localhost,http://localhost:80
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./backend/src:/app/src  # Hot reload en desarrollo
+    networks:
+      - f1-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: f1-qa-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - f1-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  f1-network:
+    driver: bridge

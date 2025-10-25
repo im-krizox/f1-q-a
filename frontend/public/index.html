@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Sistema de Q&A sobre Fórmula 1 con Redes Semánticas">
+    <meta name="author" content="F1 Q&A System">
+    <title>F1 Q&A System</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="/src/css/main.css">
+    <link rel="stylesheet" href="/src/css/chat.css">
+    <link rel="stylesheet" href="/src/css/components.css">
+    
+    <!-- Favicon -->
+    <link rel="icon" href="/favicon.ico">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <h1>🏎️ F1 Q&A System</h1>
+                <p class="subtitle">Sistema Inteligente de Preguntas sobre Fórmula 1</p>
+            </div>
+            <div class="status-indicator" id="statusIndicator">
+                <span class="status-dot"></span>
+                <span class="status-text">Verificando conexión...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container">
+        <div class="main-layout">
+            <!-- Chat Section -->
+            <section class="chat-container" role="main">
+                <!-- Welcome Screen -->
+                <div class="welcome-screen" id="welcomeScreen">
+                    <h2>¡Bienvenido al Sistema de Q&A de F1! 🏁</h2>
+                    <p>Pregunta cualquier cosa sobre Fórmula 1 y obtén respuestas basadas en nuestra base de conocimiento.</p>
+                    
+                    <div class="example-questions">
+                        <h3>Preguntas de ejemplo:</h3>
+                        <ul class="example-list">
+                            <li class="example-item" data-question="¿Quién es Max Verstappen?">
+                                <span class="icon">👤</span>
+                                <span>¿Quién es Max Verstappen?</span>
+                            </li>
+                            <li class="example-item" data-question="¿Para qué equipo corre Lewis Hamilton?">
+                                <span class="icon">🏁</span>
+                                <span>¿Para qué equipo corre Lewis Hamilton?</span>
+                            </li>
+                            <li class="example-item" data-question="¿Quién ganó el GP de Mónaco 2024?">
+                                <span class="icon">🏆</span>
+                                <span>¿Quién ganó el GP de Mónaco 2024?</span>
+                            </li>
+                            <li class="example-item" data-question="¿Qué motor usa Red Bull?">
+                                <span class="icon">⚙️</span>
+                                <span>¿Qué motor usa Red Bull?</span>
+                            </li>
+                            <li class="example-item" data-question="¿Dónde está el circuito de Spa?">
+                                <span class="icon">📍</span>
+                                <span>¿Dónde está el circuito de Spa?</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Messages Container -->
+                <div class="messages-container" id="messagesContainer" role="log" aria-live="polite" aria-atomic="false">
+                    <!-- Messages will be inserted here dynamically -->
+                </div>
+
+                <!-- Typing Indicator -->
+                <div class="typing-indicator" id="typingIndicator" style="display: none;">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+
+                <!-- Input Container -->
+                <div class="input-container">
+                    <form id="questionForm" class="question-form">
+                        <input 
+                            type="text" 
+                            id="questionInput" 
+                            class="question-input"
+                            placeholder="Escribe tu pregunta sobre F1..."
+                            autocomplete="off"
+                            maxlength="500"
+                            required
+                            aria-label="Campo de pregunta"
+                        />
+                        <button 
+                            type="submit" 
+                            id="sendButton" 
+                            class="send-button"
+                            aria-label="Enviar pregunta"
+                        >
+                            <span class="button-text">Enviar</span>
+                            <svg class="send-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="22" y1="2" x2="11" y2="13"></line>
+                                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                            </svg>
+                        </button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Info Panel -->
+            <aside class="info-panel" id="infoPanel" role="complementary">
+                <h3>Información Adicional</h3>
+                <div id="relatedEntities" class="related-entities">
+                    <p class="empty-state">Las entidades relacionadas aparecerán aquí</p>
+                </div>
+                
+                <div class="confidence-section" id="confidenceSection" style="display: none;">
+                    <h4>Nivel de Confianza</h4>
+                    <div class="confidence-meter">
+                        <div class="confidence-bar">
+                            <div class="confidence-fill" id="confidenceFill" style="width: 0%"></div>
+                        </div>
+                        <p class="confidence-text" id="confidenceText">0%</p>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <p>&copy; 2024 F1 Q&A System | Proyecto de Redes Semánticas</p>
+            <p>
+                <a href="http://localhost:8000/docs" target="_blank">Documentación API</a> | 
+                <a href="https://openf1.org" target="_blank">OpenF1 API</a> | 
+                <span>v1.0.0</span>
+            </p>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script type="module" src="/src/js/utils.js"></script>
+    <script type="module" src="/src/js/api-client.js"></script>
+    <script type="module" src="/src/js/chat-ui.js"></script>
+    <script type="module" src="/src/js/main.js"></script>
+</body>
+</html>
+
