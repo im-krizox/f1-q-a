@@ -403,11 +403,39 @@ class KnowledgeBase:
                     relationships_count += 1
         
         # Relación equipo -> motor (usa_motor)
+        # Mapeo flexible de nombres de equipos a motores
+        flexible_team_engine_map = {
+            'red bull': 'Honda RBPT',
+            'redbull': 'Honda RBPT',
+            'mercedes': 'Mercedes',
+            'ferrari': 'Ferrari',
+            'mclaren': 'Mercedes',
+            'aston martin': 'Mercedes',
+            'alpine': 'Renault',
+            'williams': 'Mercedes',
+            'alphatauri': 'Honda RBPT',
+            'rb': 'Honda RBPT',
+            'alfa romeo': 'Ferrari',
+            'sauber': 'Ferrari',
+            'kick sauber': 'Ferrari',
+            'haas': 'Ferrari',
+        }
+        
         for team_id in self.network.nodes_by_type.get('equipo', []):
             team_data = self.network.get_node_details(team_id)
             if team_data:
                 team_name = team_data['attributes'].get('team_name', '').lower()
-                engine = self.TEAM_ENGINE_MAP.get(team_name, '')
+                
+                # Intentar buscar motor con el nombre completo primero
+                engine = flexible_team_engine_map.get(team_name, '')
+                
+                # Si no se encuentra, buscar por palabras clave
+                if not engine:
+                    for key, motor in flexible_team_engine_map.items():
+                        if key in team_name or team_name in key:
+                            engine = motor
+                            break
+                
                 if engine:
                     engine_id = f"engine_{self._normalize_name(engine)}"
                     self.network.add_edge(
@@ -416,6 +444,9 @@ class KnowledgeBase:
                         relation='usa_motor'
                     )
                     relationships_count += 1
+                    logger.debug(f"Relación creada: {team_name} -> {engine}")
+                else:
+                    logger.warning(f"No se encontró motor para el equipo: {team_name}")
         
         # Relación sesión -> tipo (es_un_tipo_de)
         for session_id in self.network.nodes_by_type.get('sesion', []):
