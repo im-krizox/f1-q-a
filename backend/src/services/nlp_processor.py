@@ -135,7 +135,9 @@ class NLPProcessor:
             'monza': {'name': 'Autodromo Nazionale di Monza', 'country': 'Italy'},
             'singapore': {'name': 'Marina Bay Street Circuit', 'country': 'Singapore'},
             'austin': {'name': 'Circuit of the Americas', 'country': 'USA'},
-            'mexico': {'name': 'Autódromo Hermanos Rodríguez', 'country': 'Mexico'},
+            'mexico': {'name': 'Mexico City', 'country': 'Mexico'},
+            'méxico': {'name': 'Mexico City', 'country': 'Mexico'},
+            'mexico city': {'name': 'Mexico City', 'country': 'Mexico'},
             'interlagos': {'name': 'Autódromo José Carlos Pace', 'country': 'Brazil'},
             'sao paulo': {'name': 'Autódromo José Carlos Pace', 'country': 'Brazil'},
             'las vegas': {'name': 'Las Vegas Street Circuit', 'country': 'USA'},
@@ -277,6 +279,9 @@ class NLPProcessor:
         if not found_teams:
             potential_teams = re.findall(r'\b([A-ZÁ-Ú][a-záéíóúñ]+(?:\s+[A-ZÁ-Ú][a-záéíóúñ]+)?)\b', question)
             for team in potential_teams:
+                # Evitar palabras muy cortas (menos de 4 caracteres) que suelen ser falsos positivos
+                if len(team) < 4:
+                    continue
                 matched_key = self.fuzzy_match(team, self.known_teams, threshold=0.75)
                 if matched_key and self.known_teams[matched_key] not in entities['teams']:
                     entities['teams'].append(self.known_teams[matched_key])
