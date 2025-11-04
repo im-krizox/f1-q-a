@@ -24,6 +24,7 @@ class QueryService:
         self.knowledge_base = knowledge_base
         self.nlp_processor = nlp_processor
         self.network = knowledge_base.get_semantic_network()
+        self.openf1_client = knowledge_base.client  # Cliente para consultas dinámicas
         self.response_cache: Dict[str, AnswerResponse] = {}
         logger.info("QueryService inicializado")
     
@@ -60,7 +61,7 @@ class QueryService:
             elif action == 'get_team_of_pilot':
                 results = self._query_team_info(entities, filters)
             elif action == 'get_race_winner':
-                results = self._query_winner_info(entities, filters)
+                results = await self._query_winner_info(entities, filters)
             elif action == 'get_team_engine':
                 results = self._query_motor_info(entities, filters)
             elif action == 'get_circuit_location':
@@ -74,7 +75,7 @@ class QueryService:
             confidence = self._calculate_confidence(results, intent)
             
             # Formatear respuesta
-            answer = self._format_answer(results, query_type, entities)
+            answer = self._format_answer(results, query_type, entities, question)
             
             # Extraer entidades relacionadas
             related_entities = results.get('related_entities', [])
@@ -231,8 +232,22 @@ class QueryService:
                 'metadata': {}
             }
         
-        # Buscar equipo
+        # Buscar equipo - primero intentar coincidencia exacta
         teams = self.network.find_nodes_by_type('equipo', {'nombre_equipo': team_name})
+        
+        # Si no se encuentra, buscar de forma flexible (en el contenido del nombre)
+        if not teams:
+            all_teams = self.network.find_nodes_by_type('equipo')
+            team_name_lower = team_name.lower()
+            
+            for t in all_teams:
+                t_name = t['attributes'].get('nombre_equipo', '').lower()
+                # Buscar si el nombre del equipo contiene el término de búsqueda
+                # o si el término de búsqueda contiene el nombre del equipo
+                if team_name_lower in t_name or t_name in team_name_lower:
+                    teams = [t]
+                    logger.info(f"Equipo encontrado con búsqueda flexible: '{team_name}' -> '{t['attributes']['nombre_equipo']}'")
+                    break
         
         if not teams:
             return {
@@ -341,17 +356,169 @@ class QueryService:
             }
         }
     
-    def _query_winner_info(self, entities: Dict, filters: Dict) -> Dict[str, Any]:
+    async def _query_winner_info(self, entities: Dict, filters: Dict) -> Dict[str, Any]:
         """Consulta información sobre el ganador de una carrera"""
         logger.debug("Ejecutando consulta de ganador")
         
-        # Por ahora, sin datos de resultados específicos
-        return {
-            'found': False,
-            'message': 'La información de ganadores requiere datos adicionales de resultados',
-            'related_entities': [],
-            'metadata': {}
-        }
+        circuit_name = entities['circuits'][0] if entities['circuits'] else None
+        year = filters.get('year', 2024)
+        
+        if not circuit_name:
+            return {
+                'found': False,
+                'message': 'No se especificó un circuito o carrera',
+                'related_entities': [],
+                'metadata': {}
+            }
+        
+        try:
+            # Obtener todas las meetings del año para encontrar el circuito
+            meetings = await self.openf1_client.get_meetings(year=year)
+            
+            # Buscar la meeting que corresponde al circuito
+            target_meeting = None
+            circuit_search = circuit_name.lower()
+            
+            # Mapeo de nombres comunes a términos de búsqueda
+            search_terms = [circuit_search]
+            if 'mexico' in circuit_search or 'méxico' in circuit_search:
+                search_terms.extend(['mexico', 'méxico', 'mexico city'])
+            elif 'brasil' in circuit_search:
+                search_terms.extend(['brazil', 'sao paulo', 'são paulo', 'interlagos'])
+            elif 'monaco' in circuit_search or 'mónaco' in circuit_search:
+                search_terms.extend(['monaco', 'monte carlo'])
+            
+            for meeting in meetings:
+                location = meeting.get('location', '').lower()
+                country = meeting.get('country_name', '').lower()
+                circuit_short = meeting.get('circuit_short_name', '').lower()
+                meeting_name = meeting.get('meeting_name', '').lower()
+                
+                # Buscar coincidencia con cualquiera de los términos de búsqueda
+                for term in search_terms:
+                    if (term in location or 
+                        term in country or 
+                        term in circuit_short or
+                        term in meeting_name):
+                        target_meeting = meeting
+                        logger.info(f"Meeting encontrada: '{meeting.get('meeting_name')}' para búsqueda '{circuit_name}'")
+                        break
+                
+                if target_meeting:
+                    break
+            
+            if not target_meeting:
+                return {
+                    'found': False,
+                    'message': f'No se encontró el GP de {circuit_name} en {year}',
+                    'related_entities': [],
+                    'metadata': {}
+                }
+            
+            # Obtener sesiones de esa meeting
+            sessions = await self.openf1_client.get_sessions(year=year)
+            
+            # Buscar la sesión de Race
+            race_session = None
+            meeting_key = target_meeting.get('meeting_key')
+            
+            for session in sessions:
+                if (session.get('meeting_key') == meeting_key and 
+                    session.get('session_name') == 'Race'):
+                    race_session = session
+                    break
+            
+            if not race_session:
+                return {
+                    'found': False,
+                    'message': f'No se encontró la carrera del GP de {circuit_name} en {year}',
+                    'related_entities': [],
+                    'metadata': {}
+                }
+            
+            # Obtener resultados de la carrera
+            session_key = race_session.get('session_key')
+            results = await self.openf1_client.get_session_results(session_key)
+            
+            if not results:
+                return {
+                    'found': False,
+                    'message': f'No hay resultados disponibles para el GP de {circuit_name} {year}',
+                    'related_entities': [],
+                    'metadata': {}
+                }
+            
+            # Encontrar el ganador (posición 1)
+            winner_data = None
+            for result in results:
+                position = result.get('position')
+                if position == 1:
+                    winner_data = result
+                    break
+            
+            if not winner_data:
+                return {
+                    'found': False,
+                    'message': f'No se pudo determinar el ganador del GP de {circuit_name} {year}',
+                    'related_entities': [],
+                    'metadata': {}
+                }
+            
+            # Obtener información del piloto ganador
+            driver_number = winner_data.get('driver_number')
+            
+            # Buscar el piloto en la red semántica
+            pilots = self.network.find_nodes_by_type('piloto', {'numero_piloto': driver_number})
+            
+            winner_pilot = None
+            if pilots:
+                winner_pilot = pilots[0]
+            else:
+                # Si no está en la red, obtener de la API
+                drivers = await self.openf1_client.get_drivers(driver_number=driver_number)
+                if drivers:
+                    driver_info = drivers[0]
+                    winner_pilot = {
+                        'id': f"driver_{driver_number}",
+                        'type': 'piloto',
+                        'attributes': {
+                            'nombre': driver_info.get('full_name', 'Desconocido'),
+                            'numero_piloto': driver_number
+                        }
+                    }
+            
+            if not winner_pilot:
+                return {
+                    'found': False,
+                    'message': 'No se pudo obtener información del ganador',
+                    'related_entities': [],
+                    'metadata': {}
+                }
+            
+            related_entities = [
+                {'type': 'piloto', 'name': winner_pilot['attributes']['nombre'], 'id': winner_pilot['id']}
+            ]
+            
+            return {
+                'found': True,
+                'winner': winner_pilot,
+                'race_info': race_session,
+                'related_entities': related_entities,
+                'metadata': {
+                    'winner_name': winner_pilot['attributes']['nombre'],
+                    'circuit': circuit_name,
+                    'year': year
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Error obteniendo ganador: {e}", exc_info=True)
+            return {
+                'found': False,
+                'message': f'Error al buscar el ganador: {str(e)}',
+                'related_entities': [],
+                'metadata': {}
+            }
     
     def _query_session_info(self, entities: Dict, filters: Dict) -> Dict[str, Any]:
         """Consulta información sobre sesiones"""
@@ -481,23 +648,28 @@ class QueryService:
         self, 
         results: Dict, 
         query_type: str, 
-        entities: Dict
+        entities: Dict,
+        original_question: str = ''
     ) -> str:
         """
-        Formatea la respuesta en lenguaje natural
+        Formatea la respuesta en lenguaje natural de forma concisa
         
         Args:
             results: Resultados de la consulta
             query_type: Tipo de consulta
             entities: Entidades extraídas
+            original_question: Pregunta original para detectar qué responder
             
         Returns:
-            Respuesta formateada en español
+            Respuesta formateada en español (concisa y directa)
         """
         if not results.get('found'):
             return results.get('message', 'No se encontró información sobre tu pregunta.')
         
-        # Formatear según el tipo de consulta
+        # Normalizar pregunta para análisis
+        question_lower = original_question.lower()
+        
+        # Formatear según el tipo de consulta - RESPUESTAS CONCISAS
         if query_type == 'pilot_info':
             pilot = results['pilot']
             team = results.get('team')
@@ -505,80 +677,77 @@ class QueryService:
             nationality = pilot['attributes'].get('nacionalidad', 'Desconocida')
             number = pilot['attributes'].get('numero_piloto', '')
             
-            answer = f"{name} es un piloto de Fórmula 1 de nacionalidad {nationality}"
-            if number:
-                answer += f" con el número {number}"
-            if team:
-                team_name = team['attributes']['nombre_equipo']
-                answer += f". Actualmente corre para {team_name}"
-            answer += "."
-            return answer
+            return f"{name} - {nationality}, #{number}, {team['attributes']['nombre_equipo'] if team else 'equipo desconocido'}"
         
         elif query_type == 'team_info':
             team = results['team']
-            pilot = results['pilot']
             team_name = team['attributes']['nombre_equipo']
-            pilot_name = pilot['attributes']['nombre']
             
-            return f"{pilot_name} corre para {team_name}."
+            return team_name
         
         elif query_type == 'motor_info':
-            team = results['team']
             motor = results['motor']
-            team_name = team['attributes']['nombre_equipo']
             motor_name = motor['attributes']['fabricante']
             
-            return f"{team_name} utiliza motores {motor_name}."
+            return motor_name
+        
+        elif query_type == 'winner_info':
+            winner = results.get('winner')
+            if winner:
+                return winner['attributes']['nombre']
+            else:
+                return "No se encontró información del ganador"
         
         elif query_type == 'circuit_info':
             circuit = results['circuit']
             country = results.get('country')
-            circuit_name = circuit['attributes']['nombre_oficial']
             
             if country:
                 country_name = country['attributes']['nombre']
-                return f"El {circuit_name} está ubicado en {country_name}."
+                return country_name
             else:
-                return f"Se encontró información sobre {circuit_name}."
+                return circuit['attributes']['nombre_oficial']
         
         elif query_type == 'session_info':
             count = results.get('count', 0)
             year = results.get('metadata', {}).get('year', '')
             
             if year:
-                return f"Se encontraron {count} sesiones para el año {year}."
+                return f"{count} sesiones en {year}"
             else:
-                return f"Se encontraron {count} sesiones en la base de datos."
+                return f"{count} sesiones"
         
         else:
-            # Respuesta general - intentar dar información útil
+            # Respuesta general - detectar qué información específica se pide
             pilot_info = results.get('pilot_info')
-            team_info = results.get('team_info')
             
-            # Si hay información de piloto, mostrarla
+            # Si hay información de piloto, determinar qué responder
             if pilot_info and pilot_info.get('pilot'):
                 pilot = pilot_info['pilot']
                 team = pilot_info.get('team')
                 name = pilot['attributes'].get('nombre', 'Desconocido')
                 nationality = pilot['attributes'].get('nacionalidad', 'Desconocida')
                 number = pilot['attributes'].get('numero_piloto', '')
+                team_name = team['attributes'].get('nombre_equipo', 'Desconocido') if team else 'Desconocido'
                 
-                answer = f"{name} es un piloto de Fórmula 1"
-                if nationality != 'Desconocida':
-                    answer += f" de nacionalidad {nationality}"
-                if number:
-                    answer += f" con el número {number}"
-                if team:
-                    team_name = team['attributes'].get('nombre_equipo', 'Desconocido')
-                    answer += f". Actualmente corre para {team_name}"
-                answer += "."
-                return answer
+                # Detectar qué información específica se pregunta
+                if any(word in question_lower for word in ['país', 'pais', 'nacionalidad', 'de donde', 'dónde', 'donde']):
+                    return nationality
+                elif any(word in question_lower for word in ['número', 'numero', 'qué número', 'que numero']):
+                    return str(number)
+                elif any(word in question_lower for word in ['equipo', 'escudería', 'escuderia', 'para quién', 'para quien']):
+                    return team_name
+                elif 'quién' in question_lower or 'quien' in question_lower or 'quién es' in question_lower:
+                    # Si pregunta quién es, dar info completa pero concisa
+                    return f"{name} - {nationality}, #{number}, {team_name}"
+                else:
+                    # Respuesta por defecto con info completa
+                    return f"{name} - {nationality}, #{number}, {team_name}"
             
             # Si solo hay entidades, dar respuesta genérica
             entities_found = results.get('entities', [])
             if entities_found:
-                count = len(entities_found)
-                return f"Se encontraron {count} entidades relacionadas con tu pregunta."
+                return "Información encontrada"
             else:
-                return "Se encontró información sobre tu consulta."
+                return "Información disponible"
 
