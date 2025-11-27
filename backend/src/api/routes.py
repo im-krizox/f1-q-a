@@ -279,6 +279,13 @@ async def reload_knowledge_base(
     try:
         logger.info(f"Recargando base de conocimiento para el año {year}")
         
+        # Probar API primero
+        client = knowledge_base.client
+        meetings = await client.get_meetings(year=year)
+        sessions = await client.get_sessions(year=year)
+        
+        logger.info(f"API Test - Meetings: {len(meetings)}, Sessions: {len(sessions)}")
+        
         await knowledge_base.load_data(year=year)
         
         network = knowledge_base.get_semantic_network()
@@ -287,7 +294,11 @@ async def reload_knowledge_base(
         return {
             "status": "success",
             "message": f"Base de conocimiento recargada para el año {year}",
-            "stats": stats
+            "stats": stats,
+            "api_test": {
+                "meetings_count": len(meetings),
+                "sessions_count": len(sessions)
+            }
         }
         
     except Exception as e:
