@@ -29,7 +29,7 @@ help:
 	@echo "  make clean          - Limpiar todo"
 	@echo ""
 	@echo "📚 URLs:"
-	@echo "  Frontend:        http://localhost"
+	@echo "  Frontend:        http://localhost:3000"
 	@echo "  Backend API:     http://localhost:8000/docs"
 	@echo "  Backend Health:  http://localhost:8000/api/v1/health"
 	@echo ""
@@ -43,10 +43,10 @@ up:
 	docker-compose up -d
 	@echo "✅ Servicios iniciados"
 	@echo ""
-	@echo "📱 Frontend disponible en:    http://localhost"
+	@echo "📱 Frontend disponible en:    http://localhost:3000"
 	@echo "📖 Documentación API:         http://localhost:8000/docs"
 	@echo "🏥 Health Check Backend:      http://localhost:8000/api/v1/health"
-	@echo "🏥 Health Check Frontend:     http://localhost/health"
+	@echo "🏥 Health Check Frontend:     http://localhost:3000/health"
 
 down:
 	@echo "🛑 Deteniendo servicios..."
