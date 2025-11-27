@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     
     # API OpenF1
     openf1_base_url: str = "https://api.openf1.org/v1"
+    openf1_api_key: str = ""  # API key para OpenF1 (opcional, requerido durante sesiones en vivo)
     
     # Server
     backend_host: str = "0.0.0.0"
