@@ -302,21 +302,40 @@ git clone <repository-url>
 cd F1-Q&A
 ```
 
-2. **Iniciar con Docker Compose**
+2. **Configurar API Key de OpenF1** (REQUERIDO)
+
+⚠️ **IMPORTANTE**: La API de OpenF1 ahora requiere autenticación para acceder a los datos durante sesiones en vivo.
+
+```bash
+# Crear archivo .env en la raíz del proyecto
+touch .env
+
+# Editar y agregar tu API key
+echo "OPENF1_API_KEY=tu_api_key_aquí" > .env
+```
+
+**Cómo obtener tu API key:**
+- Regístrate en: https://tally.so/r/w2yWDb
+- Recibirás tu API key por correo electrónico
+- Copia y pega la API key en el archivo `.env`
+
+**Sin el API key, el sistema NO podrá cargar datos de pilotos, equipos, circuitos ni sesiones.**
+
+3. **Iniciar con Docker Compose**
 ```bash
 docker-compose up --build
 ```
 
-3. **Acceder a la aplicación**
-- **Frontend (Interfaz Web)**: http://localhost
+4. **Acceder a la aplicación**
+- **Frontend (Interfaz Web)**: http://localhost:3000
 - **Backend API**: http://localhost:8000
 - **Documentación API**: http://localhost:8000/docs
 - **Health Check Backend**: http://localhost:8000/api/v1/health
-- **Health Check Frontend**: http://localhost/health
+- **Health Check Frontend**: http://localhost:3000/health
 
 ### 🎯 Uso Rápido
 
-1. Abre tu navegador en http://localhost
+1. Abre tu navegador en http://localhost:3000
 2. Verás una interfaz de chat con preguntas de ejemplo
 3. Haz clic en una pregunta ejemplo o escribe tu propia pregunta
 4. ¡Obtén respuestas instantáneas sobre F1! 🏎️
