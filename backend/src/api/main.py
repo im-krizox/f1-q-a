@@ -40,7 +40,10 @@ async def lifespan(app: FastAPI):
     try:
         # Inicializar cliente OpenF1
         logger.info("Inicializando OpenF1Client...")
-        openf1_client = OpenF1Client(base_url=settings.openf1_base_url)
+        openf1_client = OpenF1Client(
+            base_url=settings.openf1_base_url,
+            api_key=settings.openf1_api_key if settings.openf1_api_key else None
+        )
         app.state.openf1_client = openf1_client
         
         # Inicializar base de conocimiento
