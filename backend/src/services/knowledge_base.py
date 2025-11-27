@@ -91,9 +91,17 @@ class KnowledgeBase:
             # Cargar datos en orden
             meetings = await self.client.get_meetings(year=year)
             logger.info(f"Obtenidos {len(meetings)} meetings")
+            if meetings:
+                logger.info(f"Primer meeting de ejemplo: {meetings[0]}")
+            else:
+                logger.warning("⚠️ No se obtuvieron meetings de la API!")
             
             sessions = await self.client.get_sessions(year=year)
             logger.info(f"Obtenidas {len(sessions)} sesiones")
+            if sessions:
+                logger.info(f"Primera sesión de ejemplo: {sessions[0]}")
+            else:
+                logger.warning("⚠️ No se obtuvieron sesiones de la API!")
             
             # Poblar red semántica
             await self._populate_circuits(meetings)
