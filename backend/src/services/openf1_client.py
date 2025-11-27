@@ -11,17 +11,24 @@ logger = logging.getLogger(__name__)
 class OpenF1Client:
     """Cliente asíncrono para interactuar con la API de OpenF1"""
     
-    def __init__(self, base_url: str):
+    def __init__(self, base_url: str, api_key: Optional[str] = None):
         """
         Inicializa el cliente de OpenF1
         
         Args:
             base_url: URL base de la API de OpenF1
+            api_key: API key opcional para autenticación
         """
         self.base_url = base_url.rstrip('/')
+        self.api_key = api_key
         self.client: Optional[httpx.AsyncClient] = None
         self.timeout = httpx.Timeout(30.0, connect=10.0)
-        logger.info(f"OpenF1Client inicializado con base_url: {self.base_url}")
+        
+        if api_key:
+            logger.info(f"OpenF1Client inicializado con autenticación")
+        else:
+            logger.warning(f"OpenF1Client inicializado SIN autenticación - puede fallar durante sesiones en vivo")
+        logger.info(f"Base URL: {self.base_url}")
     
     async def __aenter__(self):
         """Context manager entry"""
@@ -56,9 +63,14 @@ class OpenF1Client:
         
         url = f"{self.base_url}/{endpoint}"
         
+        # Preparar headers con API key si está disponible
+        headers = {}
+        if self.api_key:
+            headers['Authorization'] = f'Bearer {self.api_key}'
+        
         try:
             logger.debug(f"Realizando petición GET a: {url} con params: {params}")
-            response = await self.client.get(url, params=params)
+            response = await self.client.get(url, params=params, headers=headers)
             response.raise_for_status()
             data = response.json()
             
